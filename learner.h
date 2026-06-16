@@ -54,7 +54,7 @@ public:
     // Report learning state
     std::string learning_report() const;
 
-    static constexpr int REPLACE_INTERVAL = 32;   // moves between term replacements
+    static constexpr int REPLACE_INTERVAL = 4;    // moves between checks; 4×8 tallies = one replacement per 32 moves
     static constexpr int BLACK_MARK_LIMIT  = 3;    // consecutive losses before reset
     static constexpr int DELTA_MIN_DIVISOR = 1;    // min delta = avg coefficient
 

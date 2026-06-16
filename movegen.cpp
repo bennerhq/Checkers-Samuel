@@ -295,3 +295,54 @@ std::vector<Move> generate_moves(const Board& b) {
 bool is_terminal(const Board& b) {
     return generate_moves(b).empty();
 }
+
+// ---------------------------------------------------------------------------
+// generate_quiet_moves
+// Non-jump moves only, ignoring mandatory-capture rule.
+// ---------------------------------------------------------------------------
+std::vector<Move> generate_quiet_moves(const Board& b) {
+    std::vector<Move> moves;
+    moves.reserve(20);
+
+    uint32_t empty = b.empty();
+    uint32_t aking = b.active_kings();
+    uint32_t amen  = b.active_men();
+
+    auto add_moves = [&](uint32_t src_pieces, bool is_king) {
+        uint32_t tmp = src_pieces;
+        while (tmp) {
+            uint32_t piece = tmp & (-tmp);
+            tmp &= tmp - 1;
+            int from_sq = __builtin_ctz(piece) + 1;
+
+            auto add_dir = [&](uint32_t lands) {
+                lands &= empty;
+                while (lands) {
+                    uint32_t l = lands & (-lands);
+                    lands &= lands - 1;
+                    Move mv;
+                    mv.from     = from_sq;
+                    mv.to       = __builtin_ctz(l) + 1;
+                    mv.captured = 0;
+                    mv.is_jump  = false;
+                    mv.result   = apply_move(b, mv);
+                    moves.push_back(mv);
+                }
+            };
+
+            if (b.side == Color::Black) {
+                add_dir(black_rf(piece));
+                add_dir(black_lf(piece));
+                if (is_king) { add_dir(black_rb(piece)); add_dir(black_lb(piece)); }
+            } else {
+                add_dir(black_rb(piece));
+                add_dir(black_lb(piece));
+                if (is_king) { add_dir(black_rf(piece)); add_dir(black_lf(piece)); }
+            }
+        }
+    };
+
+    add_moves(amen,  false);
+    add_moves(aking, true);
+    return moves;
+}

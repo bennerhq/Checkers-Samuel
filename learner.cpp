@@ -64,12 +64,14 @@ void Learner::before_alpha_move(const Board& b, int backed_up) {
 
             int sign_contribution = (v * alpha.active_terms[i].sign > 0) ? +1 : -1;
 
-            // Samuel's asymmetric update:
-            //   delta > 0 (improved): only charge terms that were negative
-            //   delta < 0 (worsened): charge all contributing terms
-            if (sign_delta > 0 && alpha.active_terms[i].coefficient > 0
-                    && sign_contribution > 0)
-                continue;
+            // Samuel's asymmetric update (second series, Appendix C):
+            //   delta > 0 (improved): skip terms that agree with sign of polynomial
+            //   delta < 0 (worsened): update all non-zero contributing terms
+            if (sign_delta > 0) {
+                bool poly_positive = (saved_score >= 0);
+                if ( poly_positive && sign_contribution > 0) continue;
+                if (!poly_positive && sign_contribution < 0) continue;
+            }
 
             for (int m = 0; m < multiplier; m++)
                 update_correlation(i, sign_contribution, sign_delta);

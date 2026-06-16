@@ -35,12 +35,10 @@ static constexpr uint32_t CENTER_MASK =
 static constexpr uint32_t BLACK_BACK [[maybe_unused]] = SQ(29)|SQ(30)|SQ(31)|SQ(32);
 static constexpr uint32_t WHITE_BACK [[maybe_unused]] = SQ(1)|SQ(2)|SQ(3)|SQ(4);
 
-// Black bridge squares (back row bridge) = 29,31 or 30,32
-static constexpr uint32_t BLACK_BRIDGE_A = SQ(29)|SQ(31);
-static constexpr uint32_t BLACK_BRIDGE_B = SQ(30)|SQ(32);
-// White bridge = 1,3 or 2,4
-static constexpr uint32_t WHITE_BRIDGE_A = SQ(1)|SQ(3);
-static constexpr uint32_t WHITE_BRIDGE_B = SQ(2)|SQ(4);
+// Back-row bridge squares — paper (Appendix C): "squares 1 and 3, or 30 and 32"
+// When passive=White the bridge is {1,3}; when passive=Black the bridge is {30,32}.
+static constexpr uint32_t WHITE_BRIDGE = SQ(1)|SQ(3);
+static constexpr uint32_t BLACK_BRIDGE = SQ(30)|SQ(32);
 
 // Triangle of Oreo: Black = 2,3,7; White = 26,30,31
 static constexpr uint32_t BLACK_OREO = SQ(2)|SQ(3)|SQ(7);
@@ -218,21 +216,14 @@ int Evaluator::param_APEX(const Board& b) const {
     return 0;
 }
 
-// BACK: +1 if no active kings and both bridge squares in passive's back row
-// are occupied by passive pieces.
+// BACK: +1 if no active kings and passive holds the bridge (1&3 for White, 30&32 for Black)
 int Evaluator::param_BACK(const Board& b) const {
     if (b.active_kings()) return 0;
     uint32_t pp = b.passive();
-    if (b.side == Color::Black) {
-        // passive=White, back row = squares 1-4
-        bool bridge_a = (pp & WHITE_BRIDGE_A) == WHITE_BRIDGE_A;
-        bool bridge_b = (pp & WHITE_BRIDGE_B) == WHITE_BRIDGE_B;
-        return (bridge_a || bridge_b) ? 1 : 0;
-    } else {
-        bool bridge_a = (pp & BLACK_BRIDGE_A) == BLACK_BRIDGE_A;
-        bool bridge_b = (pp & BLACK_BRIDGE_B) == BLACK_BRIDGE_B;
-        return (bridge_a || bridge_b) ? 1 : 0;
-    }
+    if (b.side == Color::Black)
+        return ((pp & WHITE_BRIDGE) == WHITE_BRIDGE) ? 1 : 0;
+    else
+        return ((pp & BLACK_BRIDGE) == BLACK_BRIDGE) ? 1 : 0;
 }
 
 // CENT: +1 for each CENTER square occupied by passive man
@@ -282,44 +273,40 @@ int Evaluator::param_CRAMP(const Board& b) const {
     return 0;
 }
 
-// MOB helper
+// MOB helper — paper: "disregarding the fact that jump moves may or may not be available"
 int Evaluator::count_mob(const Board& b) const {
-    auto moves = generate_moves(b);
-    if (!moves.empty() && moves[0].is_jump) return 0; // jump situation
-    // Count unique destination squares for normal moves
+    auto moves = generate_quiet_moves(b);
     uint32_t dests = 0;
-    for (auto& m : moves) {
-        if (!m.is_jump) dests |= SQ(m.to);
-    }
+    for (auto& m : moves) dests |= SQ(m.to);
     return pc(dests);
 }
 
-// DENY helper: squares in MOB from which a piece could immediately be captured
+// DENY helper — paper: "captured without an exchange"
+// A square in MOB is denied only if the piece placed there could be captured
+// with no recapture available for the active side.
 int Evaluator::count_deny(const Board& b) const {
-    auto moves = generate_moves(b);
-    if (!moves.empty() && moves[0].is_jump) return 0;
+    auto quiet = generate_quiet_moves(b);
+    uint32_t denied = 0;
 
-    uint32_t passive = b.passive();
-    uint32_t empty   = b.empty();
-    int deny = 0;
-
-    for (auto& m : moves) {
-        if (m.is_jump) continue;
+    for (auto& m : quiet) {
         uint32_t to_bit = SQ(m.to);
-        // After active moves here, can passive immediately capture it?
-        Board after = m.result;
-        // Check if any passive jump is available targeting to_bit
-        Board flipped_after = after.flipped();
-        auto resp = generate_moves(flipped_after);
+        if (denied & to_bit) continue; // already counted this square
+
+        // m.result has passive to move; check if passive can capture to_bit
+        auto resp = generate_moves(m.result);
         for (auto& r : resp) {
-            if (r.is_jump && (r.captured & to_bit)) {
-                deny++;
-                break;
+            if (!r.is_jump || !(r.captured & to_bit)) continue;
+            // Passive captures our piece. r.result has active to move again.
+            // If active can recapture it is an exchange — not DENY.
+            bool exchange = false;
+            auto recaps = generate_moves(r.result);
+            for (auto& rc : recaps) {
+                if (rc.is_jump) { exchange = true; break; }
             }
+            if (!exchange) { denied |= to_bit; break; }
         }
     }
-    (void)passive; (void)empty;
-    return deny;
+    return pc(denied);
 }
 
 // DENY: +1 for each MOB square where moving there allows capture
@@ -450,25 +437,30 @@ int Evaluator::param_FORK(const Board& b) const {
 int Evaluator::param_GAP(const Board& b) const {
     uint32_t pp = b.passive();
     int count = 0;
-    auto rf = [](uint32_t b_) -> uint32_t {
-        return ((b_ & 0x0F0F0F0Fu) << 4) | ((b_ & 0xF0F0F0F0u) << 3); };
-    auto lf = [](uint32_t b_) -> uint32_t {
-        return ((b_ & 0x0F0F0F0Fu) << 5) | ((b_ & 0xF0F0F0F0u) << 4); };
 
+    using DirFn = uint32_t(*)(uint32_t);
+    static const DirFn dirs[4] = {
+        [](uint32_t x) -> uint32_t { return ((x & 0x0F0F0F0Fu) << 4) | ((x & 0xF0F0F0F0u) << 3); },  // rf
+        [](uint32_t x) -> uint32_t { return ((x & 0x0F0F0F0Fu) << 5) | ((x & 0xF0F0F0F0u) << 4); },  // lf
+        [](uint32_t x) -> uint32_t { return ((x & 0x0F0F0F0Fu) >> 5) | ((x & 0xF0F0F0F0u) >> 4); },  // rb
+        [](uint32_t x) -> uint32_t { return ((x & 0x0F0F0F0Fu) >> 4) | ((x & 0xF0F0F0F0u) >> 3); },  // lb
+    };
+
+    // Count passive pieces with a one-square gap to another passive piece or to the board edge
+    // in any of the 4 diagonal directions (Samuel Appendix C).
     for (int n = 1; n <= 32; n++) {
         if (!(pp & SQ(n))) continue;
         uint32_t bit = SQ(n);
-        // Check if there's exactly one empty square in a diagonal before another passive or edge
-        uint32_t next_rf = rf(bit);
-        uint32_t next_lf = lf(bit);
-        if (next_rf && !(pp & next_rf) && !(next_rf & pp)) {
-            uint32_t skip_rf = rf(next_rf);
-            if (skip_rf & pp) count++;
+        bool gap = false;
+        for (auto dir : dirs) {
+            uint32_t next = dir(bit);
+            if (!next) continue;          // piece is at board edge in this direction
+            if (pp & next) continue;      // adjacent piece — no gap
+            // next is empty; count if skip hits another passive OR goes off-board
+            uint32_t skip = dir(next);
+            if (!skip || (skip & pp)) { gap = true; break; }
         }
-        if (next_lf && !(pp & next_lf)) {
-            uint32_t skip_lf = lf(next_lf);
-            if (skip_lf & pp) count++;
-        }
+        if (gap) count++;
     }
     return count;
 }
@@ -478,13 +470,11 @@ int Evaluator::param_GUARD(const Board& b) const {
     if (b.active_kings()) return 0;
     uint32_t pp = b.passive();
     if (b.side == Color::Black) {
-        bool bridge = ((pp & WHITE_BRIDGE_A) == WHITE_BRIDGE_A) ||
-                      ((pp & WHITE_BRIDGE_B) == WHITE_BRIDGE_B);
+        bool bridge = (pp & WHITE_BRIDGE) == WHITE_BRIDGE;
         bool oreo   = (pp & WHITE_OREO) == WHITE_OREO;
         return (bridge || oreo) ? 1 : 0;
     } else {
-        bool bridge = ((pp & BLACK_BRIDGE_A) == BLACK_BRIDGE_A) ||
-                      ((pp & BLACK_BRIDGE_B) == BLACK_BRIDGE_B);
+        bool bridge = (pp & BLACK_BRIDGE) == BLACK_BRIDGE;
         bool oreo   = (pp & BLACK_OREO) == BLACK_OREO;
         return (bridge || oreo) ? 1 : 0;
     }

@@ -18,6 +18,11 @@ struct Move {
 // Multi-jumps are expanded fully.
 std::vector<Move> generate_moves(const Board& b);
 
+// Generate only non-jump moves, regardless of whether jumps are available.
+// Samuel's MOB and DENY parameters require this (paper: "disregarding the fact
+// that jump moves may or may not be available").
+std::vector<Move> generate_quiet_moves(const Board& b);
+
 // Apply a move to a board and return the resulting position.
 Board apply_move(const Board& b, const Move& m);
 

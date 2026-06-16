@@ -118,9 +118,7 @@ Move Game::self_play_move(bool alpha_to_move) {
     move_count++;
     maybe_age_rote();
 
-    if (alpha_to_move) {
-        learn.maybe_replace_term(move_count);
-    }
+    learn.maybe_replace_term(move_count);
 
     return chosen;
 }
