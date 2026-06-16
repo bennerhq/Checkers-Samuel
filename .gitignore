@@ -1,0 +1,50 @@
+# CMake build directories and generated files
+build/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+compile_commands.json
+Makefile
+
+# Ninja build files
+.ninja_deps
+.ninja_log
+build.ninja
+
+# Executables and binaries (project output)
+checkers
+*.exe
+*.out
+
+# Static and shared libraries
+*.a
+*.so
+*.dylib
+
+# Object files and dependency files
+*.o
+*.obj
+*.lo
+*.d
+
+# Debug symbols
+*.pdb
+*.dSYM/
+
+# Project-generated learning/book files
+poly.bin
+rote.bin
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS artifacts
+.DS_Store
+.AppleDouble
+.LSOverride
