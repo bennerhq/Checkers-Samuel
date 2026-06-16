@@ -4,6 +4,7 @@
 #include <fstream>
 #include <algorithm>
 #include <cassert>
+#include <climits>
 
 Game::Game(GameMode mode_) : mode(mode_), learn(), rote_table(100'000) {
     current_board = Board::initial();

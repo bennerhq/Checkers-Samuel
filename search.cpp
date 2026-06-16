@@ -1,6 +1,7 @@
 #include "search.h"
 #include <algorithm>
 #include <cassert>
+#include <cstdlib>
 
 // ---------------------------------------------------------------------------
 // Ply termination logic (Samuel's rules)
