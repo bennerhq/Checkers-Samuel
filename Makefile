@@ -1,10 +1,12 @@
 CXX      ?= g++
-CXXFLAGS  = -std=c++17 -O2 -Wall -Wextra
+CXXFLAGS  = -std=c++17 -O2 -Wall -Wextra -Isrc
 TARGET    = checkers
+SRCDIR    = src
 BUILDDIR  = build
-SRCS      = main.cpp board.cpp movegen.cpp evaluator.cpp \
-            search.cpp rote_table.cpp learner.cpp game.cpp
-OBJS      = $(SRCS:%.cpp=$(BUILDDIR)/%.o)
+SRCS      = $(SRCDIR)/main.cpp $(SRCDIR)/board.cpp $(SRCDIR)/movegen.cpp \
+            $(SRCDIR)/evaluator.cpp $(SRCDIR)/search.cpp \
+            $(SRCDIR)/rote_table.cpp $(SRCDIR)/learner.cpp $(SRCDIR)/game.cpp
+OBJS      = $(SRCS:$(SRCDIR)/%.cpp=$(BUILDDIR)/%.o)
 DEPS      = $(OBJS:.o=.d)
 
 .PHONY: all clean
@@ -14,7 +16,7 @@ all: $(TARGET)
 $(TARGET): $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-$(BUILDDIR)/%.o: %.cpp | $(BUILDDIR)
+$(BUILDDIR)/%.o: $(SRCDIR)/%.cpp | $(BUILDDIR)
 	$(CXX) $(CXXFLAGS) -MMD -MP -c -o $@ $<
 
 $(BUILDDIR):
