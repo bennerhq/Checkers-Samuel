@@ -47,6 +47,7 @@ rote.bin
 .DS_Store
 .AppleDouble
 .LSOverride
+.github/workflows
 
 # AI stuff
 .claude
