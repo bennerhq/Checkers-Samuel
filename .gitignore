@@ -7,7 +7,6 @@ cmake_install.cmake
 install_manifest.txt
 CTestTestfile.cmake
 compile_commands.json
-Makefile
 
 # Ninja build files
 .ninja_deps
@@ -48,3 +47,6 @@ rote.bin
 .DS_Store
 .AppleDouble
 .LSOverride
+
+# AI stuff
+.claude
